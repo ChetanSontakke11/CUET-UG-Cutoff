@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from datetime import date
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
@@ -111,7 +110,7 @@ st.markdown("""
  <div class="eyebrow">ADMISSIONS INTELLIGENCE · MACHINE LEARNING</div>
  <h1>CUET UG<br><span class="accent">Cutoff Predictor</span></h1>
  <p>Explore historical cutoff patterns and estimate future admission cutoffs with a clear, data-driven dashboard built for planning your next move.</p>
- <span class="pill">FORECAST WINDOW · CHOOSE 1–8 FUTURE YEARS</span>
+ <span class="pill">FORECAST YEARS · 2027 / 2028 / 2029 / 2030</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -127,11 +126,9 @@ with st.sidebar:
     st.markdown("**Dashboard sections**")
     st.markdown("01 · Overview\n\n02 · Forecast explorer\n\n03 · Model evaluation\n\n04 · Data transparency")
     st.divider()
-    st.markdown("**Forecast horizon**")
-    years_to_forecast = st.selectbox("How many future years?", options=list(range(1, 9)), index=3, format_func=lambda n: f"{n} year" if n == 1 else f"{n} years")
-    first_forecast_year = max(int(df["year"].max()) + 1, date.today().year + 1)
-    forecast_years = list(range(first_forecast_year, first_forecast_year + years_to_forecast))
-    st.caption(f"Forecasting {forecast_years[0]}–{forecast_years[-1]}")
+    st.markdown("**Forecast years**")
+    st.markdown("2027 · 2028 · 2029 · 2030")
+    st.caption("Select a year in the forecast panel to update its estimate.")
     st.caption("Estimates only. Verify official admission notices.")
 
 def metric_card(label,value,note):
@@ -192,30 +189,32 @@ with e2: st.metric("Holdout R²",f"{r2:.3f}" if r2 is not None else "N/A")
 with e3: st.metric("Test year",str(test_year) if test_year is not None else "N/A")
 st.caption(eval_note+" MAE is measured in cutoff units; R² is not a percentage accuracy score.")
 
-st.markdown('<div class="section-kicker">03 / FUTURE OUTLOOK</div><div class="section-heading">Your future cutoff estimate</div>',unsafe_allow_html=True)
+st.markdown('<div class="section-kicker">03 / FUTURE OUTLOOK</div><div class="section-heading">Your 2027–2030 cutoff forecast</div><div class="muted">Click a year below to see its estimated cutoff.</div>',unsafe_allow_html=True)
 if selected.year.nunique()<2:
     st.info("This selection needs at least two distinct historical years before a trend can be estimated. Add more verified records or choose another combination.")
 else:
     annual=selected.groupby("year",as_index=False).cutoff.median().sort_values("year")
     trend=LinearRegression().fit(annual[["year"]],annual["cutoff"])
     # Keep the prediction column name identical to the feature used during model fitting.
-    forecast=pd.DataFrame({"year":forecast_years})
+    forecast_years=[2027, 2028, 2029, 2030]\n    forecast=pd.DataFrame({"year":forecast_years})
     forecast["Estimated cutoff"]=trend.predict(forecast[["year"]])
     forecast=forecast.rename(columns={"year":"Year"})
     last_year=int(annual.year.max())
     last_cutoff=float(annual.loc[annual.year==last_year,"cutoff"].iloc[0])
     slope=float(trend.coef_[0])
+    selected_forecast_year = st.radio("Choose forecast year", options=forecast_years, index=0, horizontal=True, key="forecast_year_choice")
+    selected_estimate = float(forecast.loc[forecast["Year"] == selected_forecast_year, "Estimated cutoff"].iloc[0])
     k1,k2,k3=st.columns(3)
-    with k1: st.metric("Latest observed cutoff",f"{last_cutoff:,.2f}",f"Year {last_year}")
-    with k2: st.metric("2030 trend estimate",f'{forecast.iloc[-1]["Estimated cutoff"]:,.2f}')
-    with k3: st.metric("Observed direction","Rising" if slope>.05 else "Falling" if slope<-.05 else "Mostly stable")
+    with k1: st.metric("Selected year estimate",f"{selected_estimate:,.2f}",f"Forecast year {selected_forecast_year}")
+    with k2: st.metric("Latest observed cutoff",f"{last_cutoff:,.2f}",f"Year {last_year}")
+    with k3: st.metric("Historical direction","Rising" if slope>.05 else "Falling" if slope<-.05 else "Mostly stable")
     st.markdown('<div class="panel"><b>Cutoff trajectory</b><div class="muted">Observed values and future trend estimates</div></div>',unsafe_allow_html=True)
     history=annual.rename(columns={"year":"Year","cutoff":"Cutoff"}).set_index("Year")
     future=forecast.rename(columns={"Estimated cutoff":"Cutoff"}).set_index("Year")
     combined=pd.concat([history.assign(Type="Historical")["Cutoff"],future.assign(Type="Estimate")["Cutoff"]],axis=1)
     combined.columns=["Historical cutoff","Estimated cutoff"]
     st.line_chart(combined,use_container_width=True)
-    st.dataframe(forecast.style.format({"Estimated cutoff":"{:,.2f}"}),use_container_width=True,hide_index=True)
+    st.dataframe(forecast.style.format({"Estimated cutoff":"{:,.2f}"}).apply(lambda row: ["background-color: #19304b; color: #ffffff" if row["Year"] == selected_forecast_year else "" for _ in row], axis=1),use_container_width=True,hide_index=True)
     st.download_button("Download forecast CSV",forecast.to_csv(index=False).encode("utf-8"),"cuet_cutoff_forecast.csv","text/csv")
     st.warning("These are trend extrapolations, not official cutoffs or guaranteed admission outcomes. Future cutoffs can change with applicant numbers, exam difficulty, seats and admission rules.")
 
