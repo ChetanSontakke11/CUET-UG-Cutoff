@@ -33,6 +33,88 @@ div[data-testid="stForm"] { background:#111827; border:1px solid #29354d; border
 div[data-baseweb="input"] input, div[data-baseweb="select"] > div { background:#0b1120 !important; color:#f5f7ff !important; border-color:#303b53 !important; }
 label { color:#cbd4e5 !important; font-size:13px !important; }
 .footer { color:#69758d; font-size:11px; padding:22px 0 8px; border-top:1px solid #202a3d; margin-top:28px; }
+
+/* Polished visual layer: subtle motion, glass surfaces and responsive spacing */
+:root { color-scheme: dark; }
+.stApp {
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(92, 76, 220, .14), transparent 34%),
+    radial-gradient(ellipse at 92% 18%, rgba(34, 183, 201, .08), transparent 28%),
+    #080c15;
+}
+.block-container { max-width: 1440px; padding-top: 2.1rem; padding-bottom: 2.5rem; }
+[data-testid="stSidebar"] { background:linear-gradient(180deg,#11182a 0%,#0b1120 100%); border-right:1px solid rgba(145,160,200,.18); }
+[data-testid="stSidebar"] h2 { letter-spacing:-.5px; }
+.hero {
+  position:relative; overflow:hidden;
+  background:linear-gradient(115deg,rgba(24,36,61,.98),rgba(15,23,41,.97) 52%,rgba(42,31,83,.96));
+  box-shadow:0 18px 55px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.06);
+  animation:heroRise .75s cubic-bezier(.2,.7,.2,1) both;
+}
+.hero:before {
+  content:""; position:absolute; width:340px; height:340px; right:-95px; top:-175px;
+  border-radius:50%; border:1px solid rgba(180,168,255,.18);
+  box-shadow:0 0 0 28px rgba(180,168,255,.035),0 0 0 58px rgba(180,168,255,.025);
+  animation:orbFloat 9s ease-in-out infinite alternate; pointer-events:none;
+}
+.hero:after {
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(110deg,transparent 15%,rgba(255,255,255,.035) 48%,transparent 75%);
+  transform:translateX(-100%); animation:heroShimmer 1.4s .25s ease-out both;
+}
+.hero h1 { letter-spacing:-1.8px; text-shadow:0 3px 24px rgba(122,105,255,.12); }
+.eyebrow { display:inline-flex; align-items:center; gap:8px; }
+.pill { backdrop-filter:blur(8px); transition:transform .22s ease, background .22s ease, border-color .22s ease; }
+.pill:hover { transform:translateY(-2px); background:#302b59; border-color:#8175d9; }
+.metric {
+  position:relative; overflow:hidden;
+  background:linear-gradient(145deg,rgba(22,32,52,.96),rgba(14,21,36,.96));
+  box-shadow:0 8px 24px rgba(0,0,0,.12);
+  transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease;
+  animation:cardEnter .55s ease both;
+}
+.metric:hover { transform:translateY(-4px); border-color:#655bd0; box-shadow:0 14px 32px rgba(76,65,170,.16); }
+.metric:after { content:""; position:absolute; left:0; top:0; height:2px; width:100%; background:linear-gradient(90deg,#7b6cff,#49c8d8,transparent); opacity:.75; }
+div[data-testid="stForm"] {
+  background:linear-gradient(145deg,rgba(17,25,42,.94),rgba(12,18,31,.97));
+  box-shadow:0 18px 44px rgba(0,0,0,.15); backdrop-filter:blur(12px);
+}
+.stButton > button, div[data-testid="stFormSubmitButton"] > button, [data-testid="stDownloadButton"] > button {
+  background:linear-gradient(105deg,#7164f5,#9667f4 58%,#5d9de8);
+  background-size:180% 180%; color:#fff; border:1px solid rgba(255,255,255,.1);
+  border-radius:13px; font-weight:700; min-height:46px;
+  box-shadow:0 7px 20px rgba(105,89,240,.2);
+  transition:transform .2s ease,box-shadow .2s ease,background-position .3s ease;
+}
+.stButton > button:hover, div[data-testid="stFormSubmitButton"] > button:hover, [data-testid="stDownloadButton"] > button:hover {
+  color:#fff; border-color:rgba(215,208,255,.65); transform:translateY(-2px);
+  box-shadow:0 11px 27px rgba(105,89,240,.3); background-position:100% 50%;
+}
+div[data-baseweb="input"] input, div[data-baseweb="select"] > div {
+  background:rgba(7,13,26,.88) !important; color:#f5f7ff !important;
+  border-color:#303b53 !important; border-radius:10px !important;
+  transition:border-color .2s ease,box-shadow .2s ease;
+}
+div[data-baseweb="input"] input:focus { border-color:#8175ff !important; box-shadow:0 0 0 2px rgba(129,117,255,.14) !important; }
+div[data-testid="stDataFrame"], div[data-testid="stTable"] {
+  border:1px solid rgba(145,160,200,.18); border-radius:14px; overflow:hidden;
+}
+[data-testid="stAlert"] { border-radius:12px; }
+h2, h3 { letter-spacing:-.6px; }
+.footer { text-align:center; letter-spacing:.25px; }
+@keyframes heroRise { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+@keyframes cardEnter { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes orbFloat { from { transform:translate3d(0,0,0) rotate(0deg); } to { transform:translate3d(-16px,13px,0) rotate(12deg); } }
+@keyframes heroShimmer { 0% { transform:translateX(-100%); } 100% { transform:translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important; }
+}
+@media (max-width: 700px) {
+  .block-container { padding-left:1rem; padding-right:1rem; padding-top:1rem; }
+  .hero { padding:22px !important; border-radius:18px; }
+  .hero h1 { letter-spacing:-1px; }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -56,10 +138,10 @@ st.sidebar.caption("Local inference • Student-facing demo")
 
 st.markdown("""
 <div class="hero">
-  <div class="eyebrow">CUET UG · Admissions Intelligence</div>
+  <div class="eyebrow">✦ &nbsp; CUET UG · Admissions Intelligence</div>
   <h1>Find your next<br>academic possibility.</h1>
   <p>Explore a model-estimated CUET UG cutoff using university, programme, admission round and category-related inputs. This is a prediction from your saved regression model—not an official cutoff or admission guarantee.</p>
-  <br><span class="pill">GRADIENT BOOSTING REGRESSOR</span>
+  <br><span class="pill">✦ GRADIENT BOOSTING REGRESSOR</span>
   &nbsp; <span class="pill">CUET UG</span>
   &nbsp; <span class="pill">14 MODEL FEATURES</span>
 </div>
