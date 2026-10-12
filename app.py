@@ -213,15 +213,15 @@ with b:
 with c:
     st.markdown('<div class="metric"><div class="metric-label">Prediction type</div><div class="metric-value">Cutoff estimate</div></div>', unsafe_allow_html=True)
 
-st.markdown("### Configure your CUET UG scenario")
-st.caption("The current model expects numeric values. University, programme and category labels need the exact encodings used during training.")
+st.markdown("### Forecast CUET UG cutoffs · 2027–2030")
+st.caption("Set your university, programme, category and counselling details once. The app estimates each upcoming admission year automatically. Numeric codes must match the original training encodings.")
 
 with st.form("cuet_cutoff_form"):
-    st.markdown("#### Admission details")
+    st.markdown("#### 1 · Choose your forecast window and admission details")
     col1, col2, col3 = st.columns(3)
     with col1:
-        year = st.number_input("Reference admission year", min_value=2000, max_value=2100, value=2026, step=1, help="The app will predict this year and project the same scenario into upcoming years.")
-        forecast_horizon = st.number_input("Upcoming years to project", min_value=1, max_value=5, value=3, step=1, help="Creates model estimates for the next 1–5 years while keeping the other inputs unchanged.")
+        year = st.number_input("First forecast year", min_value=2027, max_value=2100, value=2027, step=1, help="Choose the first future admission year you want to estimate.")
+        forecast_horizon = st.number_input("Number of future years", min_value=1, max_value=10, value=4, step=1, help="Start at 2027 and choose 4 to estimate 2027, 2028, 2029 and 2030.")
         round_num = st.number_input("Counselling round", min_value=0, value=1, step=1)
         university_id = st.number_input("University ID code", min_value=0, value=0, step=1)
         university = st.number_input("University encoded value", value=0.0, step=1.0)
@@ -235,7 +235,7 @@ with st.form("cuet_cutoff_form"):
         seat_type = st.number_input("Seat type code", value=0.0, step=1.0)
         figure_kind = st.number_input("Cutoff figure type code", value=0.0, step=1.0)
         basis = st.number_input("Cutoff basis code", value=0.0, step=1.0)
-    st.markdown("#### Dataset source fields")
+    st.markdown("#### 3 · Dataset source fields (advanced)")
     col4, col5 = st.columns(2)
     with col4:
         source_id = st.number_input("Source ID", min_value=0, value=0, step=1)
@@ -248,7 +248,7 @@ if submitted:
     input_df = pd.DataFrame([base_values], columns=FEATURES)
     try:
         # Predict the selected reference year and each requested future year.
-        forecast_years = [int(year) + offset for offset in range(0, int(forecast_horizon) + 1)]
+        forecast_years = [int(year) + offset for offset in range(0, int(forecast_horizon))]
         forecast_rows = []
         for target_year in forecast_years:
             row_values = list(base_values)
@@ -260,8 +260,7 @@ if submitted:
         forecast_table = pd.DataFrame({
             "Admission year": forecast_years,
             "Model-estimated cutoff": [float(value) for value in forecast_values],
-            "Year type": ["Reference year" if target_year == int(year) else "Future projection"
-                          for target_year in forecast_years],
+            "Forecast": ["Future-year estimate" for _ in forecast_years],
         })
 
         reference_prediction = float(forecast_values[0])
@@ -276,11 +275,11 @@ if submitted:
                 unsafe_allow_html=True
             )
         with info_col:
-            st.markdown("#### Inputs used")
+            st.markdown("#### Scenario details used")
             st.dataframe(input_df.T.rename(columns={0: "Value"}), use_container_width=True, height=420)
 
-        st.markdown("### Upcoming-year projections")
-        st.caption(f"Same university, programme, category and counselling details are held constant; only the admission year changes from {int(year)} to {int(year) + int(forecast_horizon)}.")
+        st.markdown("### Your future cutoff estimates")
+        st.caption(f"Forecast window: {int(year)}–{int(year) + int(forecast_horizon) - 1}. Other scenario details stay constant while the admission year changes.")
         st.dataframe(
             forecast_table.style.format({"Model-estimated cutoff": "{:,.3f}"}),
             use_container_width=True,
@@ -293,7 +292,7 @@ if submitted:
         st.download_button(
             "⬇️ Download forecast as CSV",
             data=csv_data,
-            file_name=f"cuet_cutoff_forecast_{int(year)}_{int(year) + int(forecast_horizon)}.csv",
+            file_name=f"cuet_cutoff_forecast_{int(year)}_{int(year) + int(forecast_horizon) - 1}.csv",
             mime="text/csv",
             use_container_width=True
         )
