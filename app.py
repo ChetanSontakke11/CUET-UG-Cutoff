@@ -196,7 +196,8 @@ else:
     annual=selected.groupby("year",as_index=False).cutoff.median().sort_values("year")
     trend=LinearRegression().fit(annual[["year"]],annual["cutoff"])
     # Keep the prediction column name identical to the feature used during model fitting.
-    forecast_years=[2027, 2028, 2029, 2030]\n    forecast=pd.DataFrame({"year":forecast_years})
+    forecast_years=[2027, 2028, 2029, 2030]
+    forecast=pd.DataFrame({"year":forecast_years})
     forecast["Estimated cutoff"]=trend.predict(forecast[["year"]])
     forecast=forecast.rename(columns={"year":"Year"})
     last_year=int(annual.year.max())
