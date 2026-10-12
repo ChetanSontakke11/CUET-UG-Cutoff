@@ -182,8 +182,10 @@ if selected.year.nunique()<2:
 else:
     annual=selected.groupby("year",as_index=False).cutoff.median().sort_values("year")
     trend=LinearRegression().fit(annual[["year"]],annual["cutoff"])
-    forecast=pd.DataFrame({"Year":FUTURE_YEARS})
-    forecast["Estimated cutoff"]=trend.predict(forecast[["Year"]])
+    # Keep the prediction column name identical to the feature used during model fitting.
+    forecast=pd.DataFrame({"year":FUTURE_YEARS})
+    forecast["Estimated cutoff"]=trend.predict(forecast[["year"]])
+    forecast=forecast.rename(columns={"year":"Year"})
     last_year=int(annual.year.max())
     last_cutoff=float(annual.loc[annual.year==last_year,"cutoff"].iloc[0])
     slope=float(trend.coef_[0])
