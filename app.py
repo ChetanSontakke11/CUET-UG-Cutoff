@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 warnings.filterwarnings("ignore", category=UserWarning)
-st.set_page_config(page_title="CUET UG • Cutoff Predictor", page_icon="🎓", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="CUET UG | Cutoff Intelligence", page_icon="🎓", layout="wide", initial_sidebar_state="expanded")
 MODEL_PATH = Path(__file__).resolve().parent / "gradient_boosting_model.pkl"
 
 # Feature names and order must exactly match the model's training pipeline.
@@ -35,6 +35,20 @@ label { color:#cbd4e5 !important; font-size:13px !important; }
 .footer { color:#69758d; font-size:11px; padding:22px 0 8px; border-top:1px solid #202a3d; margin-top:28px; }
 
 /* Polished visual layer: subtle motion, glass surfaces and responsive spacing */
+
+/* V2 redesign: clearly distinct header, visual hierarchy and polished surfaces */
+.topline { display:flex; align-items:center; gap:13px; margin:0 0 20px; padding:13px 16px; border:1px solid rgba(153,167,207,.17); border-radius:16px; background:rgba(14,21,36,.78); box-shadow:0 10px 28px rgba(0,0,0,.12); animation:heroRise .5s ease both; }
+.brand-mark { display:flex; align-items:center; justify-content:center; width:42px; height:42px; flex:0 0 42px; border-radius:13px; color:#fff; font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:700; background:linear-gradient(135deg,#7667ff,#42bfd1); box-shadow:0 5px 18px rgba(110,99,255,.3); }
+.brand-mark span { color:#c9c2ff; margin:0 2px; }
+.topline-copy { display:flex; flex-direction:column; gap:3px; }
+.topline-copy strong { font-size:12px; letter-spacing:1.5px; color:#f5f6ff; }
+.topline-copy span { font-size:9px; letter-spacing:1.25px; color:#8593b1; }
+.live-pill { margin-left:auto; display:flex; align-items:center; gap:8px; border:1px solid rgba(110,207,188,.22); border-radius:999px; padding:8px 11px; color:#b5eadf; background:rgba(36,139,119,.08); font-size:9px; font-weight:700; letter-spacing:.9px; white-space:nowrap; }
+.live-dot { width:7px; height:7px; border-radius:50%; background:#56dfb8; box-shadow:0 0 0 4px rgba(86,223,184,.12); animation:livePulse 2s ease infinite; }
+.version-tag { border-left:1px solid rgba(181,234,223,.25); padding-left:8px; color:#c4baff; }
+@keyframes livePulse { 0%,100% { box-shadow:0 0 0 3px rgba(86,223,184,.10); } 50% { box-shadow:0 0 0 6px rgba(86,223,184,.02); } }
+@media(max-width:650px) { .topline { gap:9px; padding:10px; } .topline-copy span { display:none; } .live-pill { font-size:8px; padding:7px; gap:5px; } .version-tag { display:none; } }
+
 :root { color-scheme: dark; }
 .stApp {
   background:
@@ -135,6 +149,14 @@ st.sidebar.markdown("### How to use")
 st.sidebar.markdown("1. Enter the admission year and round.\n2. Enter university, programme and category codes.\n3. Click **Predict cutoff**.")
 st.sidebar.warning("Use the same numeric encodings as training. The pickle does not include the original category mappings.")
 st.sidebar.caption("Local inference • Student-facing demo")
+
+st.markdown("""
+<div class="topline">
+  <div class="brand-mark">CU<span>·</span>AI</div>
+  <div class="topline-copy"><strong>CUTOFF INTELLIGENCE</strong><span>ADMISSIONS PLANNING WORKSPACE</span></div>
+  <div class="live-pill"><span class="live-dot"></span> PREDICTION LAB <span class="version-tag">UI v2.0</span></div>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown("""
 <div class="hero">
