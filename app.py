@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from datetime import date
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
@@ -13,7 +14,6 @@ from sklearn.metrics import mean_absolute_error, r2_score
 st.set_page_config(page_title="CUET UG | Cutoff Intelligence", page_icon="🎓", layout="wide")
 
 DATA_PATH = Path(__file__).parent / "data" / "cuet_cutoffs.csv"
-FUTURE_YEARS = [2027, 2028, 2029, 2030]
 
 st.markdown("""
 <style>
@@ -111,7 +111,7 @@ st.markdown("""
  <div class="eyebrow">ADMISSIONS INTELLIGENCE · MACHINE LEARNING</div>
  <h1>CUET UG<br><span class="accent">Cutoff Predictor</span></h1>
  <p>Explore historical cutoff patterns and estimate future admission cutoffs with a clear, data-driven dashboard built for planning your next move.</p>
- <span class="pill">FORECAST WINDOW · 2027 — 2030</span>
+ <span class="pill">FORECAST WINDOW · CHOOSE 1–8 FUTURE YEARS</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -128,7 +128,10 @@ with st.sidebar:
     st.markdown("01 · Overview\n\n02 · Forecast explorer\n\n03 · Model evaluation\n\n04 · Data transparency")
     st.divider()
     st.markdown("**Forecast horizon**")
-    st.markdown("2027 · 2028 · 2029 · 2030")
+    years_to_forecast = st.selectbox("How many future years?", options=list(range(1, 9)), index=3, format_func=lambda n: f"{n} year" if n == 1 else f"{n} years")
+    first_forecast_year = max(int(df["year"].max()) + 1, date.today().year + 1)
+    forecast_years = list(range(first_forecast_year, first_forecast_year + years_to_forecast))
+    st.caption(f"Forecasting {forecast_years[0]}–{forecast_years[-1]}")
     st.caption("Estimates only. Verify official admission notices.")
 
 def metric_card(label,value,note):
@@ -189,14 +192,14 @@ with e2: st.metric("Holdout R²",f"{r2:.3f}" if r2 is not None else "N/A")
 with e3: st.metric("Test year",str(test_year) if test_year is not None else "N/A")
 st.caption(eval_note+" MAE is measured in cutoff units; R² is not a percentage accuracy score.")
 
-st.markdown('<div class="section-kicker">03 / FUTURE OUTLOOK</div><div class="section-heading">Your 2027–2030 estimate</div>',unsafe_allow_html=True)
+st.markdown('<div class="section-kicker">03 / FUTURE OUTLOOK</div><div class="section-heading">Your future cutoff estimate</div>',unsafe_allow_html=True)
 if selected.year.nunique()<2:
     st.info("This selection needs at least two distinct historical years before a trend can be estimated. Add more verified records or choose another combination.")
 else:
     annual=selected.groupby("year",as_index=False).cutoff.median().sort_values("year")
     trend=LinearRegression().fit(annual[["year"]],annual["cutoff"])
     # Keep the prediction column name identical to the feature used during model fitting.
-    forecast=pd.DataFrame({"year":FUTURE_YEARS})
+    forecast=pd.DataFrame({"year":forecast_years})
     forecast["Estimated cutoff"]=trend.predict(forecast[["year"]])
     forecast=forecast.rename(columns={"year":"Year"})
     last_year=int(annual.year.max())
