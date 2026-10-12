@@ -1,781 +1,372 @@
-import pickle
-import warnings
-from pathlib import Path
-
-import pandas as pd
+```python
 import streamlit as st
+import pandas as pd
+import numpy as np
 
-warnings.filterwarnings("ignore", category=UserWarning)
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, r2_score
 
-# ============================================================
-# PAGE CONFIGURATION
-# ============================================================
 st.set_page_config(
-    page_title="CUET UG | Cutoff Intelligence",
+    page_title="CUET UG Cutoff Predictor",
     page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    layout="wide"
 )
 
-MODEL_PATH = Path(__file__).resolve().parent / "gradient_boosting_model.pkl"
+st.title("🎓 CUET UG Cutoff Prediction System")
+st.write(
+    "Upload historical cutoff data, train a machine-learning model, "
+    "and estimate a cutoff for your selected admission details."
+)
 
-# IMPORTANT: Keep these names and their order exactly as trained.
-FEATURES = [
-    "university_id",
-    "university",
-    "year",
-    "programme_id",
-    "programme",
-    "college",
-    "variant",
-    "round",
-    "category",
-    "seat_type",
-    "figure_kind",
-    "basis",
-    "source_id",
-    "source_page",
+st.info(
+    "Predictions are estimates based on the uploaded data. "
+    "They are not official admission cutoffs or guarantees."
+)
+
+# -----------------------------
+# 1. Upload dataset
+# -----------------------------
+st.header("1. Upload Historical Cutoff Dataset")
+
+uploaded_file = st.file_uploader(
+    "Upload your CUET cutoff CSV file",
+    type=["csv"]
+)
+
+if uploaded_file is None:
+    st.markdown("""
+    **Your CSV should contain columns such as:**
+    - University
+    - Programme
+    - Year
+    - Category
+    - Round
+    - Cutoff score or closing rank
+    """)
+    st.stop()
+
+try:
+    df = pd.read_csv(uploaded_file)
+except Exception as e:
+    st.error(f"Could not read the CSV file: {e}")
+    st.stop()
+
+# Clean column names
+df.columns = df.columns.astype(str).str.strip()
+
+# Remove completely empty rows and columns
+df = df.dropna(how="all").dropna(axis=1, how="all")
+
+if df.empty:
+    st.error("The uploaded CSV contains no usable data.")
+    st.stop()
+
+st.success(f"Dataset loaded: {len(df)} rows and {len(df.columns)} columns")
+st.dataframe(df.head(10), use_container_width=True)
+
+# -----------------------------
+# 2. Select prediction target
+# -----------------------------
+st.header("2. Select the Cutoff Column")
+
+target_options = [
+    col for col in df.columns
+    if pd.to_numeric(df[col], errors="coerce").notna().sum() > 0
 ]
 
-# ============================================================
-# MODERN UI + ANIMATIONS
-# ============================================================
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+if not target_options:
+    st.error(
+        "No numeric columns were found. Your dataset must contain "
+        "a numeric cutoff score or closing rank."
+    )
+    st.stop()
 
-:root {
-    color-scheme: dark;
-}
-
-html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-}
-
-.stApp {
-    background:
-        radial-gradient(ellipse at 5% 0%, rgba(100,80,255,.16), transparent 32%),
-        radial-gradient(ellipse at 95% 15%, rgba(40,190,210,.10), transparent 30%),
-        #080c16;
-    color: #f4f6ff;
-}
-
-.block-container {
-    max-width: 1450px;
-    padding-top: 1.7rem;
-    padding-bottom: 3rem;
-}
-
-[data-testid="stHeader"] {
-    background: transparent;
-}
-
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #121a2d, #0b1120);
-    border-right: 1px solid rgba(150,165,210,.16);
-}
-
-[data-testid="stSidebar"] * {
-    color: #d8def0;
-}
-
-.topbar {
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    padding: 15px 18px;
-    margin-bottom: 22px;
-    background: rgba(17,25,43,.86);
-    border: 1px solid rgba(150,165,210,.19);
-    border-radius: 17px;
-    animation: rise .6s ease both;
-}
-
-.brand {
-    width: 45px;
-    height: 45px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 14px;
-    background: linear-gradient(135deg,#7768ff,#43c4d5);
-    color: white;
-    font-family: 'Space Grotesk',sans-serif;
-    font-weight: 700;
-    box-shadow: 0 5px 22px rgba(111,98,255,.3);
-}
-
-.brand-text {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.brand-text strong {
-    font-size: 13px;
-    letter-spacing: 1.5px;
-}
-
-.brand-text span {
-    color: #8491b0;
-    font-size: 10px;
-    letter-spacing: 1px;
-}
-
-.status {
-    margin-left: auto;
-    color: #92ead1;
-    font-size: 10px;
-    letter-spacing: 1px;
-    border: 1px solid rgba(90,220,180,.25);
-    background: rgba(45,170,130,.09);
-    border-radius: 999px;
-    padding: 9px 12px;
-}
-
-.hero {
-    position: relative;
-    overflow: hidden;
-    padding: 34px;
-    margin-bottom: 22px;
-    border-radius: 25px;
-    border: 1px solid rgba(170,160,255,.22);
-    background:
-        radial-gradient(circle at 88% 10%, rgba(120,85,255,.32), transparent 32%),
-        linear-gradient(120deg,#17233b,#111827 55%,#251c49);
-    box-shadow: 0 20px 60px rgba(0,0,0,.22);
-    animation: rise .75s ease both;
-}
-
-.hero:after {
-    content: "";
-    position: absolute;
-    pointer-events: none;
-    top: -100%;
-    left: -40%;
-    width: 35%;
-    height: 300%;
-    transform: rotate(25deg);
-    background: linear-gradient(90deg,transparent,rgba(255,255,255,.045),transparent);
-    animation: shine 5s ease-in-out infinite;
-}
-
-.eyebrow {
-    color: #b4aaff;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-}
-
-.hero h1 {
-    font-family: 'Space Grotesk',sans-serif;
-    color: white;
-    font-size: clamp(32px,4vw,52px);
-    line-height: 1.08;
-    letter-spacing: -1.8px;
-    margin: 15px 0;
-}
-
-.hero p {
-    color: #c0cbe0;
-    font-size: 15px;
-    line-height: 1.8;
-    max-width: 760px;
-}
-
-.tag {
-    display: inline-block;
-    margin: 5px 5px 0 0;
-    padding: 7px 11px;
-    color: #d5ceff;
-    background: rgba(125,105,255,.12);
-    border: 1px solid rgba(160,145,255,.27);
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .4px;
-}
-
-.section-title {
-    font-family: 'Space Grotesk',sans-serif;
-    font-size: 23px;
-    font-weight: 700;
-    color: #f5f6ff;
-    margin: 26px 0 5px;
-}
-
-.subtext {
-    color: #8f9bb6;
-    font-size: 13px;
-    line-height: 1.7;
-    margin-bottom: 18px;
-}
-
-.metric {
-    padding: 20px;
-    min-height: 118px;
-    border: 1px solid #293651;
-    border-radius: 17px;
-    background: linear-gradient(145deg,#151f34,#101625);
-    box-shadow: 0 9px 28px rgba(0,0,0,.12);
-    transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
-    animation: rise .6s ease both;
-}
-
-.metric:hover {
-    transform: translateY(-4px);
-    border-color: #7569ed;
-    box-shadow: 0 15px 32px rgba(91,76,210,.16);
-}
-
-.metric-label {
-    color: #93a0bc;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-}
-
-.metric-value {
-    font-family: 'Space Grotesk',sans-serif;
-    font-size: 26px;
-    font-weight: 700;
-    color: #fff;
-    margin-top: 13px;
-}
-
-div[data-testid="stForm"] {
-    padding: 24px;
-    border: 1px solid #293651;
-    border-radius: 20px;
-    background: linear-gradient(145deg,rgba(19,28,47,.96),rgba(12,18,31,.97));
-    box-shadow: 0 15px 40px rgba(0,0,0,.15);
-}
-
-label {
-    color: #cbd4e8 !important;
-    font-size: 12px !important;
-}
-
-div[data-baseweb="input"] input,
-div[data-baseweb="select"] > div {
-    background: #0a1020 !important;
-    color: #f5f7ff !important;
-    border-color: #303c57 !important;
-    border-radius: 10px !important;
-}
-
-div[data-baseweb="input"] input:focus {
-    border-color: #8a7aff !important;
-    box-shadow: 0 0 0 2px rgba(138,122,255,.15) !important;
-}
-
-.stButton > button,
-div[data-testid="stFormSubmitButton"] > button,
-[data-testid="stDownloadButton"] > button {
-    color: white;
-    background: linear-gradient(105deg,#7164f5,#9667f4,#498fdf);
-    background-size: 180% 180%;
-    border: 1px solid rgba(255,255,255,.12);
-    border-radius: 12px;
-    min-height: 46px;
-    font-weight: 700;
-    transition: transform .2s ease, box-shadow .2s ease, background-position .3s ease;
-    box-shadow: 0 7px 20px rgba(105,89,240,.2);
-}
-
-.stButton > button:hover,
-div[data-testid="stFormSubmitButton"] > button:hover,
-[data-testid="stDownloadButton"] > button:hover {
-    color: white;
-    transform: translateY(-2px);
-    background-position: 100% 50%;
-    box-shadow: 0 11px 27px rgba(105,89,240,.3);
-}
-
-[data-testid="stAlert"] {
-    border-radius: 12px;
-}
-
-div[data-testid="stDataFrame"] {
-    border: 1px solid #293651;
-    border-radius: 13px;
-    overflow: hidden;
-}
-
-.footer {
-    text-align: center;
-    padding-top: 22px;
-    margin-top: 35px;
-    border-top: 1px solid #222d43;
-    color: #7885a1;
-    font-size: 11px;
-    letter-spacing: .4px;
-}
-
-@keyframes rise {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes shine {
-    0%, 20% { left: -50%; }
-    60%, 100% { left: 140%; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-        animation-duration: .01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: .01ms !important;
-    }
-}
-
-@media(max-width:700px) {
-    .block-container {
-        padding: 1rem .8rem 2rem;
-    }
-    .hero {
-        padding: 23px;
-        border-radius: 19px;
-    }
-    .hero h1 {
-        font-size: 34px;
-        letter-spacing: -1px;
-    }
-    .topbar {
-        padding: 11px;
-    }
-    .status {
-        font-size: 8px;
-        padding: 7px;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-# ============================================================
-# MODEL LOADING
-# ============================================================
-@st.cache_resource
-def load_model_from_path(path):
-    with open(path, "rb") as file:
-        return pickle.load(file)
-
-
-@st.cache_resource
-def load_model_from_bytes(model_bytes):
-    return pickle.loads(model_bytes)
-
-
-# ============================================================
-# HEADER
-# ============================================================
-st.markdown("""
-<div class="topbar">
-    <div class="brand">CU·AI</div>
-    <div class="brand-text">
-        <strong>CUTOFF INTELLIGENCE</strong>
-        <span>CUET UG · ADMISSIONS PLANNING WORKSPACE</span>
-    </div>
-    <div class="status">● PREDICTION LAB</div>
-</div>
-
-<div class="hero">
-    <div class="eyebrow">✦ CUET UG · FUTURE ADMISSIONS</div>
-    <h1>Plan your future.<br>Explore your possibilities.</h1>
-    <p>
-        Estimate upcoming CUET UG cutoffs for 2027, 2028, 2029 and 2030.
-        Select your university, programme and category to compare model-generated
-        estimates across future admission years.
-    </p>
-    <span class="tag">GRADIENT BOOSTING REGRESSOR</span>
-    <span class="tag">2027 — 2030 FORECAST</span>
-    <span class="tag">DOWNLOADABLE RESULTS</span>
-</div>
-""", unsafe_allow_html=True)
-
-
-# ============================================================
-# SIDEBAR
-# ============================================================
-st.sidebar.markdown("## 🎓 CUET UG")
-st.sidebar.caption("CUTOFF INTELLIGENCE")
-st.sidebar.divider()
-
-st.sidebar.markdown("### How to use")
-st.sidebar.markdown("""
-1. Load the trained model.
-2. Select your forecast years.
-3. Enter university, programme and category codes.
-4. Click **Generate forecast**.
-5. Review the graph and download the results.
-""")
-
-st.sidebar.info(
-    "This model requires the same numeric encodings used during training. "
-    "The pickle file does not contain the original category mappings."
+default_target = next(
+    (
+        col for col in target_options
+        if any(word in col.lower()
+               for word in ["cutoff", "closing_rank", "rank", "score"])
+    ),
+    target_options[-1]
 )
 
-st.sidebar.caption("Estimates only · Not official admission advice")
+target = st.selectbox(
+    "Which column should the model predict?",
+    target_options,
+    index=target_options.index(default_target)
+)
 
+st.caption(
+    "Choose the actual cutoff value you want to predict. "
+    "Do not choose university IDs or programme IDs as the target."
+)
 
-# ============================================================
-# LOAD MODEL OR REQUEST UPLOAD
-# ============================================================
-model = None
+# -----------------------------
+# 3. Prepare training data
+# -----------------------------
+data = df.copy()
 
-if MODEL_PATH.is_file():
-    try:
-        model = load_model_from_path(str(MODEL_PATH))
-        st.sidebar.success("Trained model loaded from repository.")
-    except Exception as exc:
-        st.error(f"Unable to load the repository model: {exc}")
+# Convert target to numeric
+data[target] = pd.to_numeric(data[target], errors="coerce")
+data = data.dropna(subset=[target])
 
-if model is None:
-    st.warning(
-        "The trained model file is missing. Upload your original "
-        "`gradient_boosting_model.pkl` below, or add it to the GitHub "
-        "repository root and redeploy."
-    )
+# Remove rows with infinite target values
+data = data[np.isfinite(data[target])]
 
-    uploaded_model = st.file_uploader(
-        "Upload gradient_boosting_model.pkl",
-        type=["pkl"],
-        help="Upload only your trusted, original trained model file."
-    )
+feature_columns = [col for col in data.columns if col != target]
 
-    if uploaded_model is not None:
-        try:
-            model = load_model_from_bytes(uploaded_model.getvalue())
-            st.sidebar.success("Uploaded model loaded.")
-        except Exception as exc:
-            st.error(f"Could not load the uploaded model: {exc}")
-            st.stop()
+if not feature_columns:
+    st.error("The dataset needs at least one input feature besides the target.")
+    st.stop()
+
+# Exclude columns that have no usable values
+feature_columns = [
+    col for col in feature_columns
+    if data[col].notna().sum() > 0
+]
+
+if not feature_columns:
+    st.error("No usable input columns were found.")
+    st.stop()
+
+# Infer numeric and categorical columns
+numeric_features = []
+categorical_features = []
+
+for col in feature_columns:
+    converted = pd.to_numeric(data[col], errors="coerce")
+    non_null = data[col].notna().sum()
+
+    if non_null > 0 and converted.notna().sum() / non_null >= 0.9:
+        data[col] = converted
+        numeric_features.append(col)
     else:
-        st.info(
-            "The forecast form will appear after a valid model has been loaded. "
-            "Pickle files can execute code when opened, so upload only a file you trust."
-        )
-        st.stop()
+        data[col] = data[col].astype("string").fillna("Unknown")
+        categorical_features.append(col)
 
+# Fill missing feature values
+for col in numeric_features:
+    data[col] = data[col].fillna(data[col].median())
 
-# ============================================================
-# STATUS CARDS
-# ============================================================
-c1, c2, c3 = st.columns(3)
+for col in categorical_features:
+    data[col] = data[col].fillna("Unknown").astype(str)
 
-with c1:
-    st.markdown("""
-    <div class="metric">
-        <div class="metric-label">Model status</div>
-        <div class="metric-value">● Ready</div>
-    </div>
-    """, unsafe_allow_html=True)
+X = data[feature_columns]
+y = data[target]
 
-with c2:
-    st.markdown("""
-    <div class="metric">
-        <div class="metric-label">Forecast window</div>
-        <div class="metric-value">2027–2030</div>
-    </div>
-    """, unsafe_allow_html=True)
+if len(data) < 2:
+    st.error("At least two valid historical records are needed to train.")
+    st.stop()
 
-with c3:
-    st.markdown("""
-    <div class="metric">
-        <div class="metric-label">Model inputs</div>
-        <div class="metric-value">14 features</div>
-    </div>
-    """, unsafe_allow_html=True)
+# -----------------------------
+# 4. Train model
+# -----------------------------
+st.header("3. Train the Prediction Model")
 
+st.write(f"Valid training records: **{len(data)}**")
+st.write(f"Input features: **{len(feature_columns)}**")
 
-# ============================================================
-# FORECAST INPUT FORM
-# ============================================================
-st.markdown(
-    '<div class="section-title">Build your cutoff forecast</div>',
-    unsafe_allow_html=True
-)
-st.markdown(
-    '<div class="subtext">Choose your admission scenario once. '
-    'The model will evaluate each selected future year using the same other inputs.</div>',
-    unsafe_allow_html=True
-)
-
-with st.form("forecast_form"):
-    st.markdown("#### 01 · Forecast window")
-
-    fc1, fc2, fc3 = st.columns(3)
-
-    with fc1:
-        start_year = st.selectbox(
-            "First admission year",
-            options=[2027, 2028, 2029, 2030],
-            index=0
-        )
-
-    with fc2:
-        end_year = st.selectbox(
-            "Last admission year",
-            options=[2027, 2028, 2029, 2030],
-            index=3
-        )
-
-    with fc3:
-        round_num = st.number_input(
-            "Counselling round",
-            min_value=0,
-            max_value=50,
-            value=1,
-            step=1
-        )
-
-    st.markdown("#### 02 · University and programme")
-
-    a, b, c = st.columns(3)
-
-    with a:
-        university_id = st.number_input(
-            "University ID code", min_value=0, value=0, step=1
-        )
-        university = st.number_input(
-            "University encoded value", value=0.0, step=1.0
-        )
-
-    with b:
-        programme_id = st.number_input(
-            "Programme ID code", min_value=0, value=0, step=1
-        )
-        programme = st.number_input(
-            "Programme encoded value", value=0.0, step=1.0
-        )
-
-    with c:
-        college = st.number_input(
-            "College encoded value", value=0.0, step=1.0
-        )
-        variant = st.number_input(
-            "Programme variant code", value=0.0, step=1.0
-        )
-
-    st.markdown("#### 03 · Category and seat details")
-
-    d, e, f = st.columns(3)
-
-    with d:
-        category = st.number_input(
-            "Category code", value=0.0, step=1.0
-        )
-        seat_type = st.number_input(
-            "Seat type code", value=0.0, step=1.0
-        )
-
-    with e:
-        figure_kind = st.number_input(
-            "Cutoff figure type code", value=0.0, step=1.0
-        )
-        basis = st.number_input(
-            "Cutoff basis code", value=0.0, step=1.0
-        )
-
-    st.markdown("#### 04 · Source information")
-
-    g, h = st.columns(2)
-
-    with g:
-        source_id = st.number_input(
-            "Source ID", min_value=0, value=0, step=1
-        )
-
-    with h:
-        source_page = st.number_input(
-            "Source page", min_value=0, value=0, step=1
-        )
-
-    submitted = st.form_submit_button(
-        "✦ Generate future cutoff forecast",
-        use_container_width=True
-    )
-
-
-# ============================================================
-# PREDICTION
-# ============================================================
-if submitted:
-    if end_year < start_year:
-        st.error("The last admission year must be the same as or later than the first year.")
-        st.stop()
-
-    years = list(range(int(start_year), int(end_year) + 1))
-
-    base_values = [
-        university_id,
-        university,
-        start_year,  # replaced with each forecast year below
-        programme_id,
-        programme,
-        college,
-        variant,
-        round_num,
-        category,
-        seat_type,
-        figure_kind,
-        basis,
-        source_id,
-        source_page,
-    ]
-
-    forecast_rows = []
-
-    for target_year in years:
-        row = list(base_values)
-        row[FEATURES.index("year")] = target_year
-        forecast_rows.append(row)
-
-    forecast_df = pd.DataFrame(forecast_rows, columns=FEATURES)
-
+if st.button("Train Model", type="primary"):
     try:
-        predictions = model.predict(forecast_df)
+        transformers = []
 
-        results = pd.DataFrame({
-            "Admission Year": years,
-            "Estimated Cutoff": [float(p) for p in predictions],
-        })
-
-        st.divider()
-        st.markdown(
-            '<div class="section-title">Your future cutoff estimates</div>',
-            unsafe_allow_html=True
-        )
-        st.markdown(
-            f'<div class="subtext">Forecast for {start_year}–{end_year}. '
-            'Only the admission year changes between predictions.</div>',
-            unsafe_allow_html=True
-        )
-
-        # Main result
-        first_prediction = float(predictions[0])
-        m1, m2, m3 = st.columns(3)
-
-        with m1:
-            st.markdown(f"""
-            <div class="metric">
-                <div class="metric-label">First forecast · {years[0]}</div>
-                <div class="metric-value">{first_prediction:,.3f}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with m2:
-            last_prediction = float(predictions[-1])
-            st.markdown(f"""
-            <div class="metric">
-                <div class="metric-label">Last forecast · {years[-1]}</div>
-                <div class="metric-value">{last_prediction:,.3f}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with m3:
-            difference = last_prediction - first_prediction
-            st.markdown(f"""
-            <div class="metric">
-                <div class="metric-label">Model output difference</div>
-                <div class="metric-value">{difference:+,.3f}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown("#### Cutoff trend across years")
-
-        chart_df = results.set_index("Admission Year")
-        st.line_chart(
-            chart_df,
-            use_container_width=True,
-            height=350
-        )
-
-        st.markdown("#### Forecast table")
-
-        display_results = results.copy()
-        display_results["Estimated Cutoff"] = display_results[
-            "Estimated Cutoff"
-        ].map(lambda value: f"{value:,.3f}")
-
-        st.dataframe(
-            display_results,
-            use_container_width=True,
-            hide_index=True
-        )
-
-        csv_bytes = results.to_csv(index=False).encode("utf-8")
-
-        st.download_button(
-            label="⬇ Download forecast as CSV",
-            data=csv_bytes,
-            file_name=f"cuet_cutoff_forecast_{start_year}_{end_year}.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-
-        with st.expander("View exact model inputs"):
-            st.dataframe(
-                forecast_df,
-                use_container_width=True,
-                hide_index=True
+        if numeric_features:
+            transformers.append(
+                ("numeric", "passthrough", numeric_features)
             )
 
-        st.warning(
-            "These are model-generated estimates, not official CUET UG cutoffs. "
-            "A Gradient Boosting model does not reliably extrapolate long-term trends "
-            "beyond its training data. Estimates for future years may be flat or inaccurate. "
-            "Verify admission decisions against official university announcements."
+        if categorical_features:
+            transformers.append(
+                (
+                    "categorical",
+                    OneHotEncoder(handle_unknown="ignore"),
+                    categorical_features
+                )
+            )
+
+        preprocessor = ColumnTransformer(transformers=transformers)
+
+        model = Pipeline([
+            ("preprocessor", preprocessor),
+            ("regressor", GradientBoostingRegressor(
+                n_estimators=150,
+                learning_rate=0.05,
+                max_depth=3,
+                random_state=42
+            ))
+        ])
+
+        # Evaluate on a holdout set when enough records are available
+        if len(data) >= 10:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
+
+            evaluation_model = Pipeline([
+                ("preprocessor", preprocessor),
+                ("regressor", GradientBoostingRegressor(
+                    n_estimators=150,
+                    learning_rate=0.05,
+                    max_depth=3,
+                    random_state=42
+                ))
+            ])
+
+            evaluation_model.fit(X_train, y_train)
+            predictions = evaluation_model.predict(X_test)
+
+            mae = mean_absolute_error(y_test, predictions)
+
+            st.session_state["mae"] = float(mae)
+
+            if len(y_test) >= 2 and y_test.nunique() > 1:
+                st.session_state["r2"] = float(
+                    r2_score(y_test, predictions)
+                )
+            else:
+                st.session_state["r2"] = None
+        else:
+            st.session_state["mae"] = None
+            st.session_state["r2"] = None
+
+        # Train final model on all available records
+        model.fit(X, y)
+
+        st.session_state["model"] = model
+        st.session_state["feature_columns"] = feature_columns
+        st.session_state["numeric_features"] = numeric_features
+        st.session_state["categorical_features"] = categorical_features
+        st.session_state["target"] = target
+        st.session_state["training_data"] = data[feature_columns].copy()
+        st.session_state["training_rows"] = len(data)
+
+        st.success("Model trained successfully!")
+
+    except Exception as e:
+        st.error(f"Model training failed: {e}")
+
+# -----------------------------
+# 5. Show evaluation metrics
+# -----------------------------
+if "model" in st.session_state:
+    st.header("4. Model Evaluation")
+
+    mae = st.session_state.get("mae")
+    r2 = st.session_state.get("r2")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if mae is not None:
+            st.metric("Mean Absolute Error (MAE)", f"{mae:.3f}")
+        else:
+            st.metric("MAE", "Not calculated")
+            st.caption("More records are recommended for evaluation.")
+
+    with col2:
+        if r2 is not None:
+            st.metric("R² Score", f"{r2:.3f}")
+        else:
+            st.metric("R² Score", "Not calculated")
+
+    st.caption(
+        "MAE measures the average absolute prediction error. "
+        "R² indicates how well predictions fit the test data; "
+        "a negative R² is possible. These metrics do not guarantee "
+        "accuracy for future admission years."
+    )
+
+    # -----------------------------
+    # 6. Enter details and predict
+    # -----------------------------
+    st.header("5. Predict a Cutoff")
+
+    st.write("Enter the university, programme, year, and other details.")
+
+    feature_columns = st.session_state["feature_columns"]
+    numeric_features = st.session_state["numeric_features"]
+    categorical_features = st.session_state["categorical_features"]
+    training_data = st.session_state["training_data"]
+
+    with st.form("prediction_form"):
+        input_values = {}
+
+        for col in feature_columns:
+            if col in numeric_features:
+                numeric_series = pd.to_numeric(
+                    training_data[col], errors="coerce"
+                ).dropna()
+
+                if numeric_series.empty:
+                    default_value = 0.0
+                else:
+                    default_value = float(numeric_series.median())
+
+                # Allow future years beyond the historical range
+                if "year" in col.lower():
+                    input_values[col] = st.number_input(
+                        col,
+                        min_value=1900,
+                        max_value=2200,
+                        value=max(2027, int(default_value)),
+                        step=1
+                    )
+                else:
+                    input_values[col] = st.number_input(
+                        col,
+                        value=default_value
+                    )
+
+            else:
+                options = sorted(
+                    training_data[col].astype(str).unique().tolist()
+                )
+
+                if not options:
+                    options = ["Unknown"]
+
+                # Offer a text field for year-like values only if needed;
+                # other categorical features use values from the dataset.
+                input_values[col] = st.selectbox(
+                    col,
+                    options=options
+                )
+
+        submitted = st.form_submit_button(
+            "Predict Cutoff",
+            type="primary"
         )
 
-    except Exception as exc:
-        st.error(f"Prediction failed: {exc}")
-        st.info(
-            "Check that the model is the original trained model and that all 14 "
-            "features use the same names, order, data types and encodings as training."
-        )
+    if submitted:
+        try:
+            input_df = pd.DataFrame(
+                [input_values],
+                columns=feature_columns
+            )
 
+            prediction = st.session_state["model"].predict(input_df)[0]
 
-# ============================================================
-# MODEL INFORMATION
-# ============================================================
-with st.expander("About the model and forecast"):
-    st.markdown("""
-    **Algorithm:** Gradient Boosting Regressor
+            st.subheader("Predicted Cutoff")
+            st.metric(
+                label=f"Estimated {st.session_state['target']}",
+                value=f"{prediction:,.2f}"
+            )
 
-    **Input features:** 14 numeric features, supplied in the exact order
-    used by the original model.
+            st.caption(
+                "This estimate is generated from the uploaded historical "
+                "records. Verify official university admission notices "
+                "before making admission decisions."
+            )
 
-    **Future-year method:** The app runs the trained model repeatedly,
-    changing only the admission-year input. It is not a separately trained
-    time-series forecasting model.
+        except Exception as e:
+            st.error(f"Prediction failed: {e}")
 
-    **Important limitation:** The model's pickle file does not include the
-    original category mappings or historical training dataset. Input codes
-    must match the original preprocessing exactly. Zero is not necessarily
-    a valid code for every field.
-    """)
-
-    if hasattr(model, "feature_importances_"):
-        importance = pd.DataFrame({
-            "Feature": FEATURES,
-            "Importance": model.feature_importances_,
-        }).sort_values("Importance", ascending=False)
-
-        st.markdown("#### Feature importance")
-        st.bar_chart(
-            importance.set_index("Feature"),
-            use_container_width=True
-        )
-
-
-st.markdown("""
-<div class="footer">
-    CUET UG CUTOFF INTELLIGENCE · STREAMLIT ·
-    MODEL ESTIMATES ONLY · NOT OFFICIAL ADMISSION ADVICE
-</div>
-""", unsafe_allow_html=True)
+# -----------------------------
+# 7. Footer
+# -----------------------------
+st.divider()
+st.caption("CUET UG Cutoff Predictor | Machine Learning Project")
