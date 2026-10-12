@@ -1,4 +1,3 @@
-```python
 import pickle
 import warnings
 from pathlib import Path
