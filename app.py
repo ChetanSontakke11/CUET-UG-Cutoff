@@ -20,7 +20,20 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 .stApp{background:radial-gradient(ellipse at 8% 0%,rgba(30,64,175,.23),transparent 34%),radial-gradient(ellipse at 95% 18%,rgba(124,58,237,.15),transparent 28%),#080d18;color:#edf2ff;font-family:'DM Sans',sans-serif}
 [data-testid="stHeader"]{background:rgba(8,13,24,.82)} .block-container{max-width:1380px;padding-top:1.6rem;padding-bottom:3rem}
-[data-testid="stSidebar"]{background:#0b1220;border-right:1px solid #202b40}
+[data-testid="stSidebar"]{background:#101a2c!important;border-right:1px solid #344563!important}
+[data-testid="stSidebar"] > div{background:#101a2c!important}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] li,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] small{color:#e2e8f0!important}
+[data-testid="stSidebar"] h1,[data-testid="stSidebar"] h2,[data-testid="stSidebar"] h3{color:#f8fafc!important}
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"]{color:#a8b8d1!important}
+[data-testid="stSidebar"] hr{border-color:#344563!important}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] a{color:#7dd3fc!important}
+[data-testid="stSidebar"] [data-testid="stSidebarContent"]{padding-top:1.25rem}
+[data-testid="stSidebar"] [data-testid="stButton"] button{background:#172943!important;border:1px solid #344563!important;color:#f8fafc!important}
 h1,h2,h3{font-family:'Space Grotesk',sans-serif!important}
 .hero{padding:34px 36px;border-radius:26px;background:linear-gradient(115deg,#101c37,#171c42,#182c4b);border:1px solid #334155;box-shadow:0 20px 70px #0005;animation:appear .65s ease-out}
 .eyebrow{color:#7dd3fc;font-size:11px;font-weight:700;letter-spacing:2.4px}
@@ -32,7 +45,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif!important}
 .metric-card{min-height:105px;transition:transform .2s,border-color .2s}.metric-card:hover{transform:translateY(-3px);border-color:#5272a8}
 .metric-label{color:#9aabc5;font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase}
 .metric-value{color:#eaf4ff;font-size:26px;font-weight:700;margin-top:7px}.metric-note{color:#7186a6;font-size:11px;margin-top:4px}
-.section-kicker{color:#7dd3fc;font-size:11px;font-weight:700;letter-spacing:1.7px;text-transform:uppercase;margin-top:24px}
+.side-nav{display:grid;gap:9px;margin:12px 0 18px}.side-nav div{display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:9px;background:#172943;border:1px solid #2b405f;color:#e2e8f0;font-size:12px;font-weight:600}.side-nav span{color:#7dd3fc;font-size:10px;font-weight:800;letter-spacing:1px}\n.section-kicker{color:#7dd3fc;font-size:11px;font-weight:700;letter-spacing:1.7px;text-transform:uppercase;margin-top:24px}
 .section-heading{font-size:24px;font-weight:700;color:#f1f5f9;margin:3px 0 8px}.muted{color:#9aabc5;font-size:13px;line-height:1.65}
 div.stButton>button,div.stDownloadButton>button{border-radius:11px;border:1px solid #3b82f6;min-height:44px;font-weight:700;background:linear-gradient(100deg,#0e7490,#4f46e5);color:white;transition:.2s}
 div.stButton>button:hover,div.stDownloadButton>button:hover{border-color:#7dd3fc;transform:translateY(-2px);color:white;box-shadow:0 8px 24px #3b82f62e}
