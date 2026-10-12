@@ -83,7 +83,8 @@ with st.form("cuet_cutoff_form"):
     st.markdown("#### Admission details")
     col1, col2, col3 = st.columns(3)
     with col1:
-        year = st.number_input("Admission year", min_value=2000, max_value=2100, value=2026, step=1)
+        year = st.number_input("Reference admission year", min_value=2000, max_value=2100, value=2026, step=1, help="The app will predict this year and project the same scenario into upcoming years.")
+        forecast_horizon = st.number_input("Upcoming years to project", min_value=1, max_value=5, value=3, step=1, help="Creates model estimates for the next 1–5 years while keeping the other inputs unchanged.")
         round_num = st.number_input("Counselling round", min_value=0, value=1, step=1)
         university_id = st.number_input("University ID code", min_value=0, value=0, step=1)
         university = st.number_input("University encoded value", value=0.0, step=1.0)
@@ -106,24 +107,64 @@ with st.form("cuet_cutoff_form"):
     submitted = st.form_submit_button("🎯 Predict cutoff", use_container_width=True)
 
 if submitted:
-    values = [university_id, university, year, programme_id, programme, college, variant, round_num, category, seat_type, figure_kind, basis, source_id, source_page]
-    input_df = pd.DataFrame([values], columns=FEATURES)
+    base_values = [university_id, university, year, programme_id, programme, college, variant, round_num, category, seat_type, figure_kind, basis, source_id, source_page]
+    input_df = pd.DataFrame([base_values], columns=FEATURES)
     try:
-        prediction = float(model.predict(input_df)[0])
+        # Predict the selected reference year and each requested future year.
+        forecast_years = [int(year) + offset for offset in range(0, int(forecast_horizon) + 1)]
+        forecast_rows = []
+        for target_year in forecast_years:
+            row_values = list(base_values)
+            row_values[FEATURES.index("year")] = target_year
+            forecast_rows.append(row_values)
+
+        forecast_df = pd.DataFrame(forecast_rows, columns=FEATURES)
+        forecast_values = model.predict(forecast_df)
+        forecast_table = pd.DataFrame({
+            "Admission year": forecast_years,
+            "Model-estimated cutoff": [float(value) for value in forecast_values],
+            "Year type": ["Reference year" if target_year == int(year) else "Future projection"
+                          for target_year in forecast_years],
+        })
+
+        reference_prediction = float(forecast_values[0])
         st.markdown("---")
-        st.markdown("### Your predicted CUET UG cutoff")
+        st.markdown("### CUET UG cutoff forecast")
         result_col, info_col = st.columns([1.05, 1])
         with result_col:
             st.markdown(
-                f'<div class="hero" style="padding:26px;margin:0"><div class="eyebrow">Estimated model output</div>'
-                f'<div style="font-family:Space Grotesk,sans-serif;font-size:42px;font-weight:700;color:#fff;margin:12px 0">{prediction:,.3f}</div>'
+                f'<div class="hero" style="padding:26px;margin:0"><div class="eyebrow">Reference-year estimate · {int(year)}</div>'
+                f'<div style="font-family:Space Grotesk,sans-serif;font-size:42px;font-weight:700;color:#fff;margin:12px 0">{reference_prediction:,.3f}</div>'
                 f'<p>Raw output from your Gradient Boosting Regressor. The unit depends on the target used during training.</p></div>',
                 unsafe_allow_html=True
             )
-            st.info("This is a model estimate, not an official cutoff or an admission guarantee.")
         with info_col:
             st.markdown("#### Inputs used")
             st.dataframe(input_df.T.rename(columns={0: "Value"}), use_container_width=True, height=420)
+
+        st.markdown("### Upcoming-year projections")
+        st.caption(f"Same university, programme, category and counselling details are held constant; only the admission year changes from {int(year)} to {int(year) + int(forecast_horizon)}.")
+        st.dataframe(
+            forecast_table.style.format({"Model-estimated cutoff": "{:,.3f}"}),
+            use_container_width=True,
+            hide_index=True
+        )
+        chart_data = forecast_table.set_index("Admission year")[["Model-estimated cutoff"]]
+        st.line_chart(chart_data, use_container_width=True)
+
+        csv_data = forecast_table.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Download forecast as CSV",
+            data=csv_data,
+            file_name=f"cuet_cutoff_forecast_{int(year)}_{int(year) + int(forecast_horizon)}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+        st.warning(
+            "Important: these are model outputs for future-year inputs, not a separately trained time-series forecast. "
+            "Gradient Boosting trees generally do not extrapolate long-term trends beyond the years represented in training; "
+            "future estimates may stay flat or be unreliable. Validate against official university cutoffs and retrain with newer data."
+        )
     except Exception as exc:
         st.error(f"Prediction failed: {exc}")
         st.write("The app expects 14 numeric features in the exact training order. Check the original preprocessing and feature names.")
@@ -132,6 +173,7 @@ with st.expander("Model information and limitations"):
     st.write("**Model:** sklearn GradientBoostingRegressor")
     st.write("**Input feature order:** " + ", ".join(FEATURES))
     st.write("The output is a raw regression value. Its unit depends on the target column used during training.")
+    st.write("Future-year projections re-run the same model with only the year feature changed. They are not a dedicated time-series forecast; tree-based models may not extrapolate future trends reliably.")
     st.write("The pickle does not include the training dataset or category mappings; input codes must match training.")
     if hasattr(model, "feature_importances_"):
         importance = pd.DataFrame({"Feature": FEATURES, "Importance": model.feature_importances_}).sort_values("Importance", ascending=False)
