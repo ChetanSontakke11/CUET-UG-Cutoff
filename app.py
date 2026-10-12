@@ -7,7 +7,7 @@ import streamlit as st
 
 warnings.filterwarnings("ignore", category=UserWarning)
 st.set_page_config(page_title="CUET UG • Cutoff Predictor", page_icon="🎓", layout="wide", initial_sidebar_state="expanded")
-MODEL_PATH = Path(__file__).parent / "gradient_boosting_model.pkl"
+MODEL_PATH = Path(__file__).resolve().parent / "gradient_boosting_model.pkl"
 
 # Feature names and order must exactly match the model's training pipeline.
 FEATURES = ["university_id", "university", "year", "programme_id", "programme", "college", "variant", "round", "category", "seat_type", "figure_kind", "basis", "source_id", "source_page"]
@@ -37,9 +37,14 @@ label { color:#cbd4e5 !important; font-size:13px !important; }
 """, unsafe_allow_html=True)
 
 @st.cache_resource
-def load_model():
-    with open(MODEL_PATH, "rb") as f:
+def load_model_from_path(model_path: str):
+    with open(model_path, "rb") as f:
         return pickle.load(f)
+
+@st.cache_resource
+def load_model_from_bytes(model_bytes: bytes):
+    # Cache by uploaded model bytes so it is not reloaded on every rerun.
+    return pickle.loads(model_bytes)
 
 st.sidebar.markdown("## 🎓 CUET UG")
 st.sidebar.caption("CUTOFF PREDICTION LAB")
@@ -60,12 +65,40 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-try:
-    model = load_model()
-except Exception as exc:
-    st.error(f"Could not load the model file: {exc}")
-    st.info("Ensure gradient_boosting_model.pkl is in the same folder as app.py.")
-    st.stop()
+# Load the committed model when present. If it is missing on Streamlit Cloud,
+# allow the owner to upload the trusted .pkl file through the app instead of crashing.
+model = None
+if MODEL_PATH.is_file():
+    try:
+        model = load_model_from_path(str(MODEL_PATH))
+        st.sidebar.success("Trained model loaded from repository.")
+    except Exception as exc:
+        st.error(f"The repository model file could not be loaded: {exc}")
+
+if model is None:
+    st.warning(
+        "The trained model file (gradient_boosting_model.pkl) is not present in this deployment. "
+        "Upload the original model file below, or add it to the GitHub repository root and redeploy."
+    )
+    uploaded_model = st.file_uploader(
+        "Upload gradient_boosting_model.pkl",
+        type=["pkl"],
+        help="Choose the trusted GradientBoostingRegressor pickle that was used with this app."
+    )
+    if uploaded_model is not None:
+        try:
+            model = load_model_from_bytes(uploaded_model.getvalue())
+            st.sidebar.success("Trained model loaded from uploaded file.")
+        except Exception as exc:
+            st.error(f"Could not load the uploaded model: {exc}")
+            st.info("Make sure you selected the original, valid gradient_boosting_model.pkl file.")
+            st.stop()
+    else:
+        st.info(
+            "Predictions will become available after the model is loaded. "
+            "Pickle files can execute code when opened, so upload only a model file you trust."
+        )
+        st.stop()
 
 feature_count = getattr(model, "n_features_in_", len(FEATURES))
 a, b, c = st.columns(3)
